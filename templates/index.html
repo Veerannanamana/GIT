@@ -1,0 +1,188 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8" />
+    <title>GitHub Code Manager</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 700px;
+            margin: 40px auto;
+            padding: 20px;
+            background-color: #f4f4f4;
+            border-radius: 8px;
+            box-shadow: 0 0 10px rgba(0,0,0,0.1);
+        }
+        input, textarea, button {
+            width: 100%;
+            padding: 10px;
+            margin: 10px 0;
+            border-radius: 4px;
+            border: 1px solid #ccc;
+            box-sizing: border-box;
+            font-size: 1rem;
+        }
+        button {
+            background-color: #28a745;
+            color: white;
+            border: none;
+            cursor: pointer;
+        }
+        button:hover {
+            background-color: #218838;
+        }
+        #action-buttons {
+            display: none;
+            margin-top: 20px;
+            display: flex;
+            gap: 10px;
+        }
+        #file-form {
+            display: none;
+            margin-top: 20px;
+        }
+        .result {
+            padding: 10px;
+            background-color: #e2e3e5;
+            border-radius: 4px;
+            margin-top: 20px;
+        }
+    </style>
+</head>
+<body>
+    <h1>GitHub Code Manager</h1>
+
+    <!-- Initial Fields -->
+    <input type="text" id="github_url" placeholder="GitHub Repository URL (e.g., https://github.com/username/repo)" required />
+    <input type="text" id="token" placeholder="Personal Access Token" required />
+    <input type="text" id="branch" placeholder="Branch (default: main)" value="main" />
+
+    <!-- Action Buttons -->
+    <div id="action-buttons">
+        <button onclick="selectAction('push')">Push</button>
+        <button onclick="selectAction('get')">Get</button>
+        <button onclick="selectAction('update')">Update</button>
+        <button onclick="selectAction('delete')">Delete</button>
+    </div>
+
+    <!-- Filename and Code form -->
+    <div id="file-form">
+        <input type="text" id="filename" placeholder="Filename (e.g., script.py)" required />
+        <textarea id="code" rows="10" placeholder="Write your code here..."></textarea>
+        <button onclick="submitAction()">Submit</button>
+    </div>
+
+    <div class="result" id="result"></div>
+
+    <script>
+        let currentAction = null;
+
+        // Show action buttons after filling initial fields
+        const fields = ["github_url", "token", "branch"];
+        fields.forEach(id => {
+            document.getElementById(id).addEventListener("input", checkFields);
+        });
+
+        function checkFields() {
+            const github_url = document.getElementById("github_url").value.trim();
+            const token = document.getElementById("token").value.trim();
+            const branch = document.getElementById("branch").value.trim();
+            const actionDiv = document.getElementById("action-buttons");
+            if (github_url && token && branch) {
+                actionDiv.style.display = "flex";
+            } else {
+                actionDiv.style.display = "none";
+                document.getElementById("file-form").style.display = "none";
+            }
+        }
+
+        function selectAction(action) {
+            currentAction = action;
+            document.getElementById("file-form").style.display = "block";
+            const resultDiv = document.getElementById("result");
+            resultDiv.style.color = "green";
+            resultDiv.textContent = `Action '${action}' selected. Ready!`;
+            setTimeout(() => { resultDiv.textContent = ""; }, 2000);
+
+            if (action === "get" || action === "delete") {
+                document.getElementById("code").style.display = "none";
+            } else {
+                document.getElementById("code").style.display = "block";
+            }
+        }
+
+        function submitAction() {
+            const github_url = document.getElementById("github_url").value.trim();
+            const token = document.getElementById("token").value.trim();
+            const branch = document.getElementById("branch").value.trim() || "main";
+            const filename = document.getElementById("filename").value.trim();
+            const code = document.getElementById("code").value;
+
+            if (!github_url || !token || !filename || ((currentAction === "push" || currentAction === "update") && !code)) {
+                alert("Please fill all required fields!");
+                return;
+            }
+
+            let endpoint = "";
+            if (currentAction === "push") endpoint = "/push-code";
+            else if (currentAction === "get") endpoint = "/get-code";
+            else if (currentAction === "update") endpoint = "/update-code";
+            else if (currentAction === "delete") endpoint = "/delete-code";
+
+            const payload = {
+                github_url,
+                token,
+                branch,
+                filename
+            };
+            if (currentAction === "push" || currentAction === "update") {
+                payload.code = code;
+            }
+
+            fetch(endpoint, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(payload)
+            })
+            .then(response => {
+                if (!response.ok) {
+                    throw new Error("HTTP error " + response.status);
+                }
+                return response.json();
+            })
+            .then(data => {
+                const resultDiv = document.getElementById("result");
+                if (data.message || data.code !== undefined) {
+                    resultDiv.style.color = "green";
+                    resultDiv.textContent = data.message || "Operation successful!";
+                    if (data.code !== undefined) {
+                        document.getElementById("code").value = data.code;
+                        document.getElementById("code").style.display = "block";
+                    }
+                    if (currentAction === "push" || currentAction === "update") {
+                        setTimeout(() => {
+                            document.getElementById("filename").value = "";
+                            document.getElementById("code").value = "";
+                            resultDiv.textContent = "Filename and code cleared.";
+                        }, 3000);
+                    }
+                    if (currentAction === "delete") {
+                        setTimeout(() => {
+                            document.getElementById("filename").value = "";
+                            resultDiv.textContent = "Filename cleared.";
+                        }, 3000);
+                    }
+                } else {
+                    resultDiv.style.color = "red";
+                    resultDiv.textContent = data.error || "An error occurred.";
+                }
+            })
+            .catch(err => {
+                const resultDiv = document.getElementById("result");
+                resultDiv.style.color = "red";
+                resultDiv.textContent = "Error: " + err;
+            });
+        }
+    </script>
+</body>
+</html>
